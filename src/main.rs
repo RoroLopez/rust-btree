@@ -1,6 +1,3 @@
-// type Children<T> = Option<RefCell<Rc<Vec<BTreeNode<T>>>>>;
-// type Keys<T> = Option<RefCell<Rc<Vec<T>>>>;
-
 #[derive(Clone, Debug)]
 struct BTreeNode {
     keys: Vec<Option<u32>>,
@@ -8,8 +5,11 @@ struct BTreeNode {
     is_leaf: bool,
 }
 
+#[derive(Debug)]
 struct BTree {
     degree: usize,
+    key_size: usize,
+    children_size: usize,
     root: BTreeNode,
 }
 
@@ -20,7 +20,9 @@ impl BTree {
             children: vec![None; 2*degree],
             is_leaf: true,
         };
-        BTree { degree, root }
+        let key_size = 2*degree - 1;
+        let children_size = 2*degree;
+        BTree { degree, root, key_size, children_size }
     }
 
     pub fn search() {
@@ -35,15 +37,16 @@ impl BTree {
         todo!()
     }
 
-    fn split_child(&mut self, parent: &mut BTreeNode, index: usize) {
+    // fn split_child(&mut self, parent: &mut BTreeNode, index: usize) --> original signature
+    fn split_child(&mut self, index: usize) {
         let t = self.degree;
+        let mut parent = &mut self.root;
         let mut full_node = parent.children[index].take().unwrap();
         let mut new_node: BTreeNode = BTreeNode {
-            keys: vec![None; 2*t - 1],
-            children: vec![None; 2*t],
-            is_leaf: false,
+            keys: vec![None; self.key_size],
+            children: vec![None; self.children_size],
+            is_leaf: full_node.is_leaf,
         };
-        new_node.is_leaf = full_node.is_leaf;
         let new_node_keys: Vec<Option<u32>> = full_node.keys.iter_mut().skip(t).map(Option::take).collect();
         for (i, key) in new_node_keys.into_iter().enumerate() {
             new_node.keys[i] = key;
@@ -54,71 +57,51 @@ impl BTree {
                 new_node.children[i] = child;
             }
         }
+        // shift children to make space for new child
+        for i in (index+2..self.children_size).rev() {
+            parent.children[i] = parent.children[i-1].take();
+        }
         parent.children[index+1] = Some(new_node);
-        parent.keys[index] = full_node.keys[t-1]; // median value of node
+
+        // shift keys one element to make space for new key
+        for i in (index+1..self.key_size).rev() {
+            parent.keys[i] = parent.keys[i-1].take();
+        }
+        parent.keys[index] = full_node.keys[t-1].take(); // median value of node
         parent.children[index] = Some(full_node);
     }
 }
 
-// #[derive(Clone, Debug)]
-// struct Node {
-//     key: usize,
-//     children: Vec<Option<Node>>
-// }
-
 fn main() {
-    // let mut node = Node {
-    //     key: 32,
-    //     children: vec![None; 5]
-    // };
-    // for i in 0..5 {
-    //     node.children[i] = Some(
-    //         Node {
-    //             key: i,
-    //             children: vec![None; 5]
-    //         }
-    //     )
-    // }
-    // let mut new_node = Node {
-    //     key: 100,
-    //     children: vec![None; 5]
-    // };
-    // let node_children: Vec<Option<Node>> = node.children.iter_mut().skip(2).map(Option::take).collect();
-    // for (i, child) in node_children.into_iter().enumerate() {
-    //     new_node.children[i] = child;
-    // }
-    // for child in &new_node.children {
-    //     println!("{:?}", child)
-    // }
+    let t = 3;
+    let mut root_node = BTreeNode {
+        keys: vec![None; 2*t - 1],
+        children: vec![None; 2*t],
+        is_leaf: false,
+    };
+    root_node.keys[0] = Some(4);
+    root_node.keys[1] = Some(10);
 
-    // for i in node_children {
-    //     println!("{:?}", i);
-    // }
+    let mut split_node = BTreeNode {
+        keys: vec![None; 2*t - 1],
+        children: vec![None; 2*t],
+        is_leaf: true,
+    };
+    split_node.keys[0] = Some(5);
+    split_node.keys[1] = Some(6);
+    split_node.keys[2] = Some(7);
+    split_node.keys[3] = Some(8);
+    split_node.keys[4] = Some(9);
 
+    root_node.children[1] = Some(split_node);
 
-    // let n = 5;
-    // let mut v: Vec<Option<u32>> = vec![None; n];
-    // for (index, i) in (101 .. 106).enumerate() {
-    //     v[index] = Some(i);
-    // }
-    // for i in &v {
-    //     println!("{:?}", i);
-    // }
-    // let mut prior_median_slice: Vec<Option<u32>> = v.iter_mut().take(2).map(Option::take).collect();
-    // let median = v[2].take();
-    // let mut after_median_slice: Vec<Option<u32>> = v.iter_mut().skip(3).map(Option::take).collect();
-    // println!("Prior median slice values");
-    // for i in prior_median_slice {
-    //     println!("{:?}", i);
-    // }
-    // println!("Median value");
-    // println!("{:?}", median);
-    // println!("After median slice values");
-    // for i in after_median_slice {
-    //     println!("{:?}", i);
-    // }
-    // println!("Original vector slice values after extraction");
-    // for i in v {
-    //     println!("{:?}", i);
-    // }
+    let mut tree = BTree {
+        degree: t,
+        key_size: 2*t-1,
+        children_size: 2*t,
+        root: root_node,
+    };
+
+    tree.split_child( 1);
+    println!("{:?}", tree);
 }
