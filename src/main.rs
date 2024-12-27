@@ -25,10 +25,20 @@ impl BTree {
         BTree { degree, root, key_size, children_size }
     }
 
-    pub fn search() {
-        todo!()
+    pub fn search(node: &BTreeNode, key: u32) -> Option<(&BTreeNode, usize)> {
+        let mut i = 0;
+        while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i].unwrap() {
+            i += 1;
+        }
+        if i < node.keys.len() && node.keys[i].is_some() && key == node.keys[i].unwrap() {
+            return Some((node, i))
+        }
+        if node.is_leaf {
+            return None
+        }
+        Self::search(node.children[i].as_ref().unwrap(), key)
     }
-    
+
     pub fn insert(&mut self, key: u32) {
         let root_vector_size = Self::count_current_vector(&self.root);
         if root_vector_size == self.root.keys.capacity() {
@@ -116,19 +126,19 @@ impl BTree {
         node.keys.iter().filter(|el| el.is_some()).count()
     }
 
-    // fn shift_elements() {
-    //
-    // }
+    fn shift_elements() {
+        todo!()
+    }
 }
 
 fn main() {
     let t = 2;
     let mut btree = BTree::create_tree(t);
-    btree.insert(1);
-    btree.insert(2);
-    btree.insert(3);
-    btree.insert(4);
-    btree.insert(5);
+    for i in 1..=5 {
+        btree.insert(i);
+    }
+    // println!("{:?}", &btree);
 
-    println!("{:?}", btree);
+    let node = BTree::search(&btree.root, 5);
+    println!("{:?}", node);
 }
