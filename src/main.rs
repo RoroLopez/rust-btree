@@ -129,7 +129,47 @@ impl BTree {
     fn shift_elements() {
         todo!()
     }
+
+    fn iter(&self) -> BTreeIter {
+        let mut iter = BTreeIter { unvisited: Vec::new() };
+        iter.initialize_stack(self);
+        iter
+    }
 }
+
+struct BTreeIter<'a> {
+    unvisited: Vec<&'a BTreeNode>
+}
+
+impl<'a> BTreeIter<'a> {
+    fn initialize_stack(&mut self, mut btree: &'a BTree) {
+        self.unvisited.push(&btree.root);
+    }
+}
+
+impl<'a> IntoIterator for &'a BTree {
+    type Item = &'a BTreeNode;
+    type IntoIter = BTreeIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a> Iterator for BTreeIter<'a> {
+    type Item = &'a BTreeNode;
+    fn next(&mut self) -> Option<Self::Item> {
+        let node = self.unvisited.pop()?;
+        let mut children_iter = node.children.iter();
+        while let Some(child) = children_iter.next() {
+            if child.is_some() {
+                self.unvisited.push(child.as_ref().unwrap());
+            }
+        }
+        Some(node)
+    }
+}
+
 
 fn main() {
     let t = 2;
@@ -137,8 +177,11 @@ fn main() {
     for i in 1..=5 {
         btree.insert(i);
     }
-    // println!("{:?}", &btree);
 
-    let node = BTree::search(&btree.root, 5);
-    println!("{:?}", node);
+    for node in &btree {
+        println!("{:?}", node);
+    }
+
+    // let node = BTree::search(&btree.root, 5);
+    // println!("{:?}", node);
 }
