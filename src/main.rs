@@ -142,13 +142,13 @@ struct BTreeIter<'a> {
 }
 
 impl<'a> BTreeIter<'a> {
-    fn initialize_stack(&mut self, mut btree: &'a BTree) {
+    fn initialize_stack(&mut self, btree: &'a BTree) {
         self.unvisited.push(&btree.root);
     }
 }
 
 impl<'a> IntoIterator for &'a BTree {
-    type Item = &'a BTreeNode;
+    type Item = &'a Vec<Option<u32>>;
     type IntoIter = BTreeIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -157,7 +157,7 @@ impl<'a> IntoIterator for &'a BTree {
 }
 
 impl<'a> Iterator for BTreeIter<'a> {
-    type Item = &'a BTreeNode;
+    type Item = &'a Vec<Option<u32>>;
     fn next(&mut self) -> Option<Self::Item> {
         let node = self.unvisited.pop()?;
         let mut children_iter = node.children.iter();
@@ -166,7 +166,7 @@ impl<'a> Iterator for BTreeIter<'a> {
                 self.unvisited.push(child.as_ref().unwrap());
             }
         }
-        Some(node)
+        Some(&node.keys)
     }
 }
 
@@ -178,9 +178,9 @@ fn main() {
         btree.insert(i);
     }
 
-    for node in &btree {
-        println!("{:?}", node);
-    }
+    // for node in &btree {
+    //     println!("{:?}", node);
+    // }
 
     // let node = BTree::search(&btree.root, 5);
     // println!("{:?}", node);
