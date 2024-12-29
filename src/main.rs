@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 #[derive(Clone, Debug)]
 struct BTreeNode {
     keys: Vec<Option<u32>>,
@@ -51,7 +53,7 @@ impl BTree {
         todo!()
     }
 
-    fn merge_node() {
+    fn merge_children() {
         todo!()
     }
 
@@ -131,19 +133,19 @@ impl BTree {
     }
 
     fn iter(&self) -> BTreeIter {
-        let mut iter = BTreeIter { unvisited: Vec::new() };
+        let mut iter = BTreeIter { unvisited: VecDeque::new() };
         iter.initialize_stack(self);
         iter
     }
 }
 
 struct BTreeIter<'a> {
-    unvisited: Vec<&'a BTreeNode>
+    unvisited: VecDeque<&'a BTreeNode>
 }
 
 impl<'a> BTreeIter<'a> {
     fn initialize_stack(&mut self, btree: &'a BTree) {
-        self.unvisited.push(&btree.root);
+        self.unvisited.push_back(&btree.root);
     }
 }
 
@@ -159,11 +161,11 @@ impl<'a> IntoIterator for &'a BTree {
 impl<'a> Iterator for BTreeIter<'a> {
     type Item = &'a Vec<Option<u32>>;
     fn next(&mut self) -> Option<Self::Item> {
-        let node = self.unvisited.pop()?;
+        let node = self.unvisited.pop_front()?;
         let mut children_iter = node.children.iter();
         while let Some(child) = children_iter.next() {
             if child.is_some() {
-                self.unvisited.push(child.as_ref().unwrap());
+                self.unvisited.push_back(child.as_ref().unwrap());
             }
         }
         Some(&node.keys)
@@ -174,14 +176,8 @@ impl<'a> Iterator for BTreeIter<'a> {
 fn main() {
     let t = 2;
     let mut btree = BTree::create_tree(t);
-    for i in 1..=5 {
+    for i in 1..=10 {
         btree.insert(i);
     }
-
-    // for node in &btree {
-    //     println!("{:?}", node);
-    // }
-
-    // let node = BTree::search(&btree.root, 5);
-    // println!("{:?}", node);
+    
 }
