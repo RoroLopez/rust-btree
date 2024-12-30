@@ -53,8 +53,29 @@ impl BTree {
         todo!()
     }
 
-    fn merge_children() {
-        todo!()
+    fn merge_children(node: &mut BTreeNode, index: usize, degree: usize) {
+        let median_key: Option<u32> = node.keys[index].take();
+        node.children[index].as_mut().unwrap().keys[degree-1] = median_key;
+        // TODO refactor this shift
+        // Shifting all elements so no gaps are in between
+        for i in index..node.keys.capacity()-1 {
+            node.keys[i] = node.keys[i+1];
+        }
+        let sibling_keys: Vec<Option<u32>> = node.children[index+1].as_mut().unwrap().keys.iter_mut().take(degree-1).map(Option::take).collect();
+        for (i, key) in sibling_keys.into_iter().enumerate() {
+            node.children[index].as_mut().unwrap().keys[degree+i] = key;
+        }
+        if !node.children[index+1].as_ref().unwrap().is_leaf {
+            // Same logic as for keys but for children
+            let sibling_children: Vec<Option<BTreeNode>> = node.children[index+1].as_mut().unwrap().children.iter_mut().take(degree-1).map(Option::take).collect();
+            for (i, key) in sibling_children.into_iter().enumerate() {
+                node.children[index].as_mut().unwrap().children[degree+i+1] = key;
+            }
+        }
+        // Shift children making sure the index+1 node gets deleted
+        for i in index+1..node.children.capacity()-1 {
+            node.children[i] = node.children[i+1].take();
+        }
     }
 
     fn insert_not_full(node: &mut BTreeNode, key: u32, degree: usize) {
@@ -176,8 +197,18 @@ impl<'a> Iterator for BTreeIter<'a> {
 fn main() {
     let t = 2;
     let mut btree = BTree::create_tree(t);
-    for i in 1..=10 {
+    for i in 1..=6 {
         btree.insert(i);
     }
-    
+    for i in &btree {
+        println!("{:?}", i);
+    }
+
+    println!("Merge children operation");
+
+    BTree::merge_children(&mut btree.root, 0, 2);
+
+    for i in &btree {
+        println!("{:?}", i);
+    }
 }
