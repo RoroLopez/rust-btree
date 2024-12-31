@@ -25,16 +25,16 @@ impl BTree {
 
     pub fn search(node: &BTreeNode, key: u32) -> Option<(&BTreeNode, usize)> {
         let mut i = 0;
-        while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i].unwrap() {
+        while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i]? {
             i += 1;
         }
-        if i < node.keys.len() && node.keys[i].is_some() && key == node.keys[i].unwrap() {
+        if i < node.keys.len() && node.keys[i].is_some() && key == node.keys[i]? {
             return Some((node, i))
         }
         if node.is_leaf {
             return None
         }
-        Self::search(node.children[i].as_ref().unwrap(), key)
+        Self::search(node.children[i].as_ref()?, key)
     }
 
     pub fn insert(&mut self, key: u32) {
@@ -45,42 +45,65 @@ impl BTree {
         Self::insert_not_full(&mut self.root, key, self.degree)
     }
 
-    pub fn remove(&self, node: &mut BTreeNode, key: u32) -> Option<u32> {
+    pub fn remove(&mut self, node: &mut BTreeNode, key: u32) -> Option<u32> {
         let mut i = 0;
-        while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i].unwrap() {
+        while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i]? {
             i += 1;
         }
         if node.is_leaf {
-            return if i < node.keys.len() && key == node.keys[i].unwrap() {
+            return if i < node.keys.len() && key == node.keys[i]? {
                 node.keys[i]
             } else {
                 None
             }
         }
-        if i < node.keys.len() && key == node.keys[i].unwrap() {
-            let child_vector_size = Self::count_current_vector(node.children[i].as_ref().unwrap());
-            if child_vector_size >= self.degree {
+        if i < node.keys.len() && key == node.keys[i]? {
+            if Self::count_current_vector(node.children[i].as_ref()?) >= self.degree {
                 let predecessor_key_index = node.children[i].as_ref().unwrap().keys
                     .iter()
                     .enumerate()
-                    .filter(|el| el.is_some())
+                    .filter(|(id, el)| el.is_some())
                     .max_by_key(|(_idx, &val)| val)
-                    .map(|(idx, value)| idx).unwrap();
-                let predecessor_key = node.children[i].as_mut().unwrap().keys[predecessor_key_index].take().unwrap();
+                    .map(|(idx, value)| idx)?;
+                let predecessor_key = node.children[i].as_mut().unwrap().keys[predecessor_key_index].take()?;
                 for i in predecessor_key_index..self.key_size {
                     node.children[i].as_mut().unwrap().keys[i] = node.children[i].as_mut().unwrap().keys[i+1];
                 }
-                Self::remove(self, node.children[i].as_mut().unwrap(), predecessor_key);
+                let result = Self::remove(self, node.children[i].as_mut()?, predecessor_key);
                 node.keys[i] = Some(predecessor_key);
+                result
             }
-            None
+            else if Self::count_current_vector(node.children[i+1].as_ref()?) >= self.degree {
+                let successor_key_index = node.children[i+1].as_ref().unwrap().keys
+                    .iter()
+                    .enumerate()
+                    .filter(|(id, el)| el.is_some())
+                    .max_by_key(|(_idx, &val)| val)
+                    .map(|(idx, value)| idx)?;
+                let successor_key = node.children[i+1].as_mut().unwrap().keys[successor_key_index].take()?;
+                for i in successor_key_index..self.key_size {
+                    node.children[i+1].as_mut().unwrap().keys[i] = node.children[i+1].as_mut().unwrap().keys[i+1];
+                }
+                let result = Self::remove(self, node.children[i+1].as_mut()?, successor_key);
+                node.keys[i] = Some(successor_key);
+                result
+            } else {
+                Self::merge_children(node, i, self.degree);
+                if Self::count_current_vector(&self.root) == 0 {
+                    let child = self.root.children[0].take();
+                    self.root = child?;
+                }
+                let result = Self::remove(self, node.children[i].as_mut()?, key);
+                result
+            }
         } else {
+            // TODO handle case 3
             None
         }
     }
 
     fn merge_children(node: &mut BTreeNode, index: usize, degree: usize) {
-        let median_key: Option<u32> = node.keys[index].take();
+        let median_key = node.keys[index].take();
         node.children[index].as_mut().unwrap().keys[degree-1] = median_key;
         // TODO refactor this shift
         // Shifting all elements so no gaps are in between
@@ -222,7 +245,7 @@ impl<'a> Iterator for BTreeIter<'a> {
 fn main() {
     let t = 2;
     let mut btree = BTree::create_tree(t);
-    for i in 1..=6 {
+    for i in 1..=4 {
         btree.insert(i);
     }
     for i in &btree {
@@ -231,6 +254,14 @@ fn main() {
 
     println!("Merge children operation");
     BTree::merge_children(&mut btree.root, 0, 2);
+    for i in &btree {
+        println!("{:?}", i);
+    }
+    if BTree::count_current_vector(&btree.root) == 0 {
+        let child = btree.root.children[0].take();
+        btree.root = child.unwrap();
+        println!("Height of tree decreased");
+    }
     for i in &btree {
         println!("{:?}", i);
     }
