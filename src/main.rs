@@ -17,11 +17,7 @@ struct BTree {
 
 impl BTree {
     pub fn create_tree(degree: usize) -> Self {
-        let root = BTreeNode {
-            keys: vec![None; 2*degree - 1],
-            children: vec![None; 2*degree],
-            is_leaf: true,
-        };
+        let root = Self::new_node(degree, true);
         let key_size = 2*degree - 1;
         let children_size = 2*degree;
         BTree { degree, root, key_size, children_size }
@@ -49,8 +45,38 @@ impl BTree {
         Self::insert_not_full(&mut self.root, key, self.degree)
     }
 
-    pub fn remove(key: u32) {
-        todo!()
+    pub fn remove(&self, node: &mut BTreeNode, key: u32) -> Option<u32> {
+        let mut i = 0;
+        while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i].unwrap() {
+            i += 1;
+        }
+        if node.is_leaf {
+            return if i < node.keys.len() && key == node.keys[i].unwrap() {
+                node.keys[i]
+            } else {
+                None
+            }
+        }
+        if i < node.keys.len() && key == node.keys[i].unwrap() {
+            let child_vector_size = Self::count_current_vector(node.children[i].as_ref().unwrap());
+            if child_vector_size >= self.degree {
+                let predecessor_key_index = node.children[i].as_ref().unwrap().keys
+                    .iter()
+                    .enumerate()
+                    .filter(|el| el.is_some())
+                    .max_by_key(|(_idx, &val)| val)
+                    .map(|(idx, value)| idx).unwrap();
+                let predecessor_key = node.children[i].as_mut().unwrap().keys[predecessor_key_index].take().unwrap();
+                for i in predecessor_key_index..self.key_size {
+                    node.children[i].as_mut().unwrap().keys[i] = node.children[i].as_mut().unwrap().keys[i+1];
+                }
+                Self::remove(self, node.children[i].as_mut().unwrap(), predecessor_key);
+                node.keys[i] = Some(predecessor_key);
+            }
+            None
+        } else {
+            None
+        }
     }
 
     fn merge_children(node: &mut BTreeNode, index: usize, degree: usize) {
@@ -193,7 +219,6 @@ impl<'a> Iterator for BTreeIter<'a> {
     }
 }
 
-
 fn main() {
     let t = 2;
     let mut btree = BTree::create_tree(t);
@@ -205,9 +230,7 @@ fn main() {
     }
 
     println!("Merge children operation");
-
     BTree::merge_children(&mut btree.root, 0, 2);
-
     for i in &btree {
         println!("{:?}", i);
     }
