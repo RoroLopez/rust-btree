@@ -93,11 +93,36 @@ impl BTree {
                     let child = self.root.children[0].take();
                     self.root = child?;
                 }
-                let result = Self::remove(self, node.children[i].as_mut()?, key);
-                result
+                Self::remove(self, node.children[i].as_mut()?, key)
             }
         } else {
-            // TODO handle case 3
+            if Self::count_current_vector(node.children[i].as_ref()?) >= self.degree {
+                return Self::remove(self, node.children[i].as_mut()?, key)
+            } else if Self::siblings_with_t_keys(node, i, self.degree) {
+                let j = Self::index_of_sibling_with_t_keys(node, i, self.degree)?;
+                if j == i + 1 {
+                    let first_none = node.children[i].as_ref()?.keys
+                        .iter()
+                        .position(|val| val.is_none())?;
+                    node.children[i].as_mut()?.keys[first_none] = node.keys[i].take();
+                    node.keys[i] = node.children[j].as_mut()?.keys[0].take();
+                    for i in first_none..node.keys.capacity() {
+                        node.children[j].as_mut()?.keys[i] = node.children[j].as_mut()?.keys[i+1];
+                    }
+                    if !node.children[j].as_ref()?.is_leaf {
+                        let first_child = node.children[j].take();
+                        let first_none = node.children[i].as_ref()?.children
+                            .iter()
+                            .position(|child| child.is_none())?;
+                        node.children[i].as_mut()?.children[first_none] = first_child;
+                        for i in first_none..node.children.capacity() {
+                            node.children[i].as_mut()?.children[i] = node.children[i].as_mut()?.children[i+1].take();
+                        }
+                    }
+                }
+            } else {
+
+            }
             None
         }
     }
@@ -198,6 +223,26 @@ impl BTree {
         node.keys.iter().filter(|el| el.is_some()).count()
     }
 
+    fn siblings_with_t_keys(node: &BTreeNode, index: usize, t: usize) -> bool {
+        let left_sibling = index > 0 &&
+            Self::count_current_vector(node.children[index-1].as_ref().unwrap()) >= t;
+        let right_sibling = index < node.children.capacity() - 1 &&
+            Self::count_current_vector(node.children[index+1].as_ref().unwrap()) >= t;
+        left_sibling || right_sibling
+    }
+
+    fn index_of_sibling_with_t_keys(node: &BTreeNode, index: usize, t: usize) -> Option<usize> {
+        if index > 0 &&
+            Self::count_current_vector(node.children[index-1].as_ref().unwrap()) >= t {
+            return Some(index - 1)
+        }
+        if index < node.children.capacity() - 1 &&
+            Self::count_current_vector(node.children[index+1].as_ref().unwrap()) >= t {
+            return Some(index + 1)
+        }
+        None
+    }
+
     fn shift_elements() {
         todo!()
     }
@@ -243,26 +288,5 @@ impl<'a> Iterator for BTreeIter<'a> {
 }
 
 fn main() {
-    let t = 2;
-    let mut btree = BTree::create_tree(t);
-    for i in 1..=4 {
-        btree.insert(i);
-    }
-    for i in &btree {
-        println!("{:?}", i);
-    }
-
-    println!("Merge children operation");
-    BTree::merge_children(&mut btree.root, 0, 2);
-    for i in &btree {
-        println!("{:?}", i);
-    }
-    if BTree::count_current_vector(&btree.root) == 0 {
-        let child = btree.root.children[0].take();
-        btree.root = child.unwrap();
-        println!("Height of tree decreased");
-    }
-    for i in &btree {
-        println!("{:?}", i);
-    }
+    println!("Testing");
 }
