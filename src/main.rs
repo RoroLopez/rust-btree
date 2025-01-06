@@ -101,25 +101,44 @@ impl BTree {
             } else if Self::siblings_with_t_keys(node, i, self.degree) {
                 let j = Self::index_of_sibling_with_t_keys(node, i, self.degree)?;
                 if j == i + 1 {
-                    let first_none = node.children[i].as_ref()?.keys
+                    let first_none_node = node.children[i].as_ref()?.keys
                         .iter()
-                        .position(|val| val.is_none())?;
-                    node.children[i].as_mut()?.keys[first_none] = node.keys[i].take();
+                        .position(|key| key.is_none())?;
+                    node.children[i].as_mut()?.keys[first_none_node] = node.keys[i].take();
                     node.keys[i] = node.children[j].as_mut()?.keys[0].take();
-                    for i in first_none..node.keys.capacity() {
-                        node.children[j].as_mut()?.keys[i] = node.children[j].as_mut()?.keys[i+1];
+                    for i in 0..node.keys.capacity() {
+                        node.children[j].as_mut()?.keys[i] = node.children[j].as_mut()?.keys[i+1].take();
                     }
                     if !node.children[j].as_ref()?.is_leaf {
-                        let first_child = node.children[j].take();
-                        let first_none = node.children[i].as_ref()?.children
+                        let first_child = node.children[j].as_mut()?.children[0].take();
+                        let first_none_child = node.children[i].as_ref()?.children
                             .iter()
                             .position(|child| child.is_none())?;
-                        node.children[i].as_mut()?.children[first_none] = first_child;
-                        for i in first_none..node.children.capacity() {
-                            node.children[i].as_mut()?.children[i] = node.children[i].as_mut()?.children[i+1].take();
+                        node.children[i].as_mut()?.children[first_none_child] = first_child;
+                        for i in 0..node.children.capacity() {
+                            node.children[j].as_mut()?.children[i] = node.children[j].as_mut()?.children[i+1].take();
                         }
                     }
+                } else {
+                    for move_index in (1..node.keys.capacity()).rev() {
+                        node.children[i].as_mut()?.keys[move_index] = node.children[i].as_mut()?.keys[move_index-1];
+                    }
+                    node.children[i].as_mut()?.keys[0] = node.keys[j].take();
+                    let pop_key = node.children[j].as_ref()?.keys
+                        .iter()
+                        .position(|key| key.is_none())? - 1;
+                    node.keys[j] = node.children[j].as_mut()?.keys[pop_key].take();
+                    if !node.children[j].as_ref()?.is_leaf {
+                        let pop_child = node.children[j].as_ref()?.children
+                            .iter()
+                            .position(|child| child.is_none())? - 1;
+                        for move_index in (1..node.children.capacity()).rev() {
+                            node.children[i].as_mut()?.children[move_index] = node.children[i].as_mut()?.children[move_index-1].take();
+                        }
+                        node.children[i].as_mut()?.children[0] = node.children[j].as_mut()?.children[pop_child].take();
+                    }
                 }
+                return Self::remove(self, node.children[i].as_mut()?, key)
             } else {
 
             }
