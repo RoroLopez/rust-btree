@@ -97,7 +97,7 @@ impl BTree {
             }
         } else {
             if Self::count_current_vector(node.children[i].as_ref()?) >= self.degree {
-                return Self::remove(self, node.children[i].as_mut()?, key)
+                Self::remove(self, node.children[i].as_mut()?, key)
             } else if Self::siblings_with_t_keys(node, i, self.degree) {
                 let j = Self::index_of_sibling_with_t_keys(node, i, self.degree)?;
                 if j == i + 1 {
@@ -140,9 +140,18 @@ impl BTree {
                 }
                 return Self::remove(self, node.children[i].as_mut()?, key)
             } else {
-
+                if i > 0 {
+                    Self::merge_children(node, i - 1, self.degree);
+                    i = i - 1;
+                } else {
+                    Self::merge_children(node, i, self.degree);
+                }
+                if Self::count_current_vector(&self.root) == 0 {
+                    let child = self.root.children[0].take();
+                    self.root = child?;
+                }
+                Self::remove(self, node.children[i].as_mut()?, key)
             }
-            None
         }
     }
 
