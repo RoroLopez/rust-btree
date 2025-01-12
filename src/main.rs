@@ -45,68 +45,71 @@ impl BTree {
         Self::insert_not_full(&mut self.root, key, self.degree)
     }
 
-    pub fn remove(&mut self, node: &mut BTreeNode, key: u32) -> Option<u32> {
+    pub fn remove(&mut self, key: u32) -> Option<u32> {
+        let result = Self::remove_from_node(&mut self.root, key, self.degree);
+        if Self::count_current_vector(&self.root) == 0 && !self.root.is_leaf {
+            self.root = self.root.children[0].take().unwrap();
+        }
+        result
+    }
+
+    fn remove_from_node(node: &mut BTreeNode, key: u32, degree: usize) -> Option<u32> {
         let mut i = 0;
         while i < node.keys.len() && node.keys[i].is_some() && key > node.keys[i]? {
             i += 1;
         }
         if node.is_leaf {
             return if i < node.keys.len() && key == node.keys[i]? {
-                node.keys[i]
+                node.keys[i].take()
             } else {
                 None
             }
         }
         if i < node.keys.len() && key == node.keys[i]? {
-            if Self::count_current_vector(node.children[i].as_ref()?) >= self.degree {
+            if Self::count_current_vector(node.children[i].as_ref()?) >= degree {
                 let predecessor_key_index = node.children[i].as_ref().unwrap().keys
                     .iter()
                     .enumerate()
-                    .filter(|(id, el)| el.is_some())
-                    .max_by_key(|(_idx, &val)| val)
-                    .map(|(idx, value)| idx)?;
+                    .filter(|(_, el)| el.is_some())
+                    .max_by_key(|(_, &val)| val)
+                    .map(|(idx, _)| idx)?;
                 let predecessor_key = node.children[i].as_mut().unwrap().keys[predecessor_key_index].take()?;
-                for i in predecessor_key_index..self.key_size {
-                    node.children[i].as_mut().unwrap().keys[i] = node.children[i].as_mut().unwrap().keys[i+1];
+                for i in predecessor_key_index..2*degree-1 {
+                    node.children[i].as_mut().unwrap().keys[i] = node.children[i].as_mut().unwrap().keys[i+1].take();
                 }
-                let result = Self::remove(self, node.children[i].as_mut()?, predecessor_key);
+                let result = Self::remove_from_node(node.children[i].as_mut()?, predecessor_key, degree);
                 node.keys[i] = Some(predecessor_key);
                 result
-            }
-            else if Self::count_current_vector(node.children[i+1].as_ref()?) >= self.degree {
+            } else if Self::count_current_vector(node.children[i+1].as_ref()?) >= degree {
                 let successor_key_index = node.children[i+1].as_ref().unwrap().keys
                     .iter()
                     .enumerate()
-                    .filter(|(id, el)| el.is_some())
-                    .max_by_key(|(_idx, &val)| val)
-                    .map(|(idx, value)| idx)?;
+                    .filter(|(_, el)| el.is_some())
+                    .min_by_key(|(_, &val)| val)
+                    .map(|(idx, _)| idx)?;
                 let successor_key = node.children[i+1].as_mut().unwrap().keys[successor_key_index].take()?;
-                for i in successor_key_index..self.key_size {
-                    node.children[i+1].as_mut().unwrap().keys[i] = node.children[i+1].as_mut().unwrap().keys[i+1];
+                for i in successor_key_index..2*degree-1 {
+                    node.children[i+1].as_mut().unwrap().keys[i] = node.children[i+1].as_mut().unwrap().keys[i+1].take();
                 }
-                let result = Self::remove(self, node.children[i+1].as_mut()?, successor_key);
+                let result = Self::remove_from_node(node.children[i+1].as_mut()?, successor_key, degree);
                 node.keys[i] = Some(successor_key);
                 result
             } else {
-                Self::merge_children(node, i, self.degree);
-                if Self::count_current_vector(&self.root) == 0 {
-                    let child = self.root.children[0].take();
-                    self.root = child?;
-                }
-                Self::remove(self, node.children[i].as_mut()?, key)
+                Self::merge_children(node, i, degree);
+                Self::remove_from_node(node.children[i].as_mut()?, key, degree)
             }
         } else {
-            if Self::count_current_vector(node.children[i].as_ref()?) >= self.degree {
-                Self::remove(self, node.children[i].as_mut()?, key)
-            } else if Self::siblings_with_t_keys(node, i, self.degree) {
-                let j = Self::index_of_sibling_with_t_keys(node, i, self.degree)?;
+            if Self::count_current_vector(node.children[i].as_ref()?) >= degree {
+                Self::remove_from_node(node.children[i].as_mut()?, key, degree)
+            } else if Self::siblings_with_t_keys(node, i, degree) {
+                let j = Self::index_of_sibling_with_t_keys(node, i, degree)?;
                 if j == i + 1 {
                     let first_none_node = node.children[i].as_ref()?.keys
                         .iter()
                         .position(|key| key.is_none())?;
                     node.children[i].as_mut()?.keys[first_none_node] = node.keys[i].take();
                     node.keys[i] = node.children[j].as_mut()?.keys[0].take();
-                    for i in 0..node.keys.capacity() {
+                    for i in 0..2*degree-1 {
                         node.children[j].as_mut()?.keys[i] = node.children[j].as_mut()?.keys[i+1].take();
                     }
                     if !node.children[j].as_ref()?.is_leaf {
@@ -115,13 +118,13 @@ impl BTree {
                             .iter()
                             .position(|child| child.is_none())?;
                         node.children[i].as_mut()?.children[first_none_child] = first_child;
-                        for i in 0..node.children.capacity() {
+                        for i in 0..2*degree {
                             node.children[j].as_mut()?.children[i] = node.children[j].as_mut()?.children[i+1].take();
                         }
                     }
                 } else {
-                    for move_index in (1..node.keys.capacity()).rev() {
-                        node.children[i].as_mut()?.keys[move_index] = node.children[i].as_mut()?.keys[move_index-1];
+                    for move_index in (1..2*degree-1).rev() {
+                        node.children[i].as_mut()?.keys[move_index] = node.children[i].as_mut()?.keys[move_index-1].take();
                     }
                     node.children[i].as_mut()?.keys[0] = node.keys[j].take();
                     let pop_key = node.children[j].as_ref()?.keys
@@ -132,25 +135,21 @@ impl BTree {
                         let pop_child = node.children[j].as_ref()?.children
                             .iter()
                             .position(|child| child.is_none())? - 1;
-                        for move_index in (1..node.children.capacity()).rev() {
+                        for move_index in (1..2*degree).rev() {
                             node.children[i].as_mut()?.children[move_index] = node.children[i].as_mut()?.children[move_index-1].take();
                         }
                         node.children[i].as_mut()?.children[0] = node.children[j].as_mut()?.children[pop_child].take();
                     }
                 }
-                return Self::remove(self, node.children[i].as_mut()?, key)
+                Self::remove_from_node(node.children[i].as_mut()?, key, degree)
             } else {
                 if i > 0 {
-                    Self::merge_children(node, i - 1, self.degree);
+                    Self::merge_children(node, i - 1, degree);
                     i = i - 1;
                 } else {
-                    Self::merge_children(node, i, self.degree);
+                    Self::merge_children(node, i, degree);
                 }
-                if Self::count_current_vector(&self.root) == 0 {
-                    let child = self.root.children[0].take();
-                    self.root = child?;
-                }
-                Self::remove(self, node.children[i].as_mut()?, key)
+                Self::remove_from_node(node.children[i].as_mut()?, key, degree)
             }
         }
     }
