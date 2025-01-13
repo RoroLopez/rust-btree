@@ -59,13 +59,17 @@ impl BTree {
             i += 1;
         }
         if node.is_leaf {
-            return if i < node.keys.len() && key == node.keys[i]? {
-                node.keys[i].take()
+            return if i < node.keys.len() && node.keys[i].is_some() && key == node.keys[i]? {
+                let result = node.keys[i].take();
+                for index in i..2*degree-2 {
+                    node.keys[index] = node.keys[index+1].take();
+                }
+                result
             } else {
                 None
             }
         }
-        if i < node.keys.len() && key == node.keys[i]? {
+        if i < node.keys.len() && node.keys[i].is_some() && key == node.keys[i]? {
             if Self::count_current_vector(node.children[i].as_ref()?) >= degree {
                 let predecessor_key_index = node.children[i].as_ref().unwrap().keys
                     .iter()
@@ -74,8 +78,8 @@ impl BTree {
                     .max_by_key(|(_, &val)| val)
                     .map(|(idx, _)| idx)?;
                 let predecessor_key = node.children[i].as_mut().unwrap().keys[predecessor_key_index].take()?;
-                for i in predecessor_key_index..2*degree-1 {
-                    node.children[i].as_mut().unwrap().keys[i] = node.children[i].as_mut().unwrap().keys[i+1].take();
+                for index in predecessor_key_index..2*degree-2 {
+                    node.children[i].as_mut().unwrap().keys[index] = node.children[i].as_mut().unwrap().keys[index+1].take();
                 }
                 let result = Self::remove_from_node(node.children[i].as_mut()?, predecessor_key, degree);
                 node.keys[i] = Some(predecessor_key);
@@ -88,8 +92,8 @@ impl BTree {
                     .min_by_key(|(_, &val)| val)
                     .map(|(idx, _)| idx)?;
                 let successor_key = node.children[i+1].as_mut().unwrap().keys[successor_key_index].take()?;
-                for i in successor_key_index..2*degree-1 {
-                    node.children[i+1].as_mut().unwrap().keys[i] = node.children[i+1].as_mut().unwrap().keys[i+1].take();
+                for index in successor_key_index..2*degree-2 {
+                    node.children[i+1].as_mut().unwrap().keys[index] = node.children[i+1].as_mut().unwrap().keys[index+1].take();
                 }
                 let result = Self::remove_from_node(node.children[i+1].as_mut()?, successor_key, degree);
                 node.keys[i] = Some(successor_key);
@@ -109,8 +113,8 @@ impl BTree {
                         .position(|key| key.is_none())?;
                     node.children[i].as_mut()?.keys[first_none_node] = node.keys[i].take();
                     node.keys[i] = node.children[j].as_mut()?.keys[0].take();
-                    for i in 0..2*degree-1 {
-                        node.children[j].as_mut()?.keys[i] = node.children[j].as_mut()?.keys[i+1].take();
+                    for index in 0..2*degree-2 {
+                        node.children[j].as_mut()?.keys[index] = node.children[j].as_mut()?.keys[index+1].take();
                     }
                     if !node.children[j].as_ref()?.is_leaf {
                         let first_child = node.children[j].as_mut()?.children[0].take();
@@ -118,12 +122,12 @@ impl BTree {
                             .iter()
                             .position(|child| child.is_none())?;
                         node.children[i].as_mut()?.children[first_none_child] = first_child;
-                        for i in 0..2*degree {
-                            node.children[j].as_mut()?.children[i] = node.children[j].as_mut()?.children[i+1].take();
+                        for index in 0..2*degree - 1 {
+                            node.children[j].as_mut()?.children[index] = node.children[j].as_mut()?.children[index+1].take();
                         }
                     }
                 } else {
-                    for move_index in (1..2*degree-1).rev() {
+                    for move_index in (1..2*degree-2).rev() {
                         node.children[i].as_mut()?.keys[move_index] = node.children[i].as_mut()?.keys[move_index-1].take();
                     }
                     node.children[i].as_mut()?.keys[0] = node.keys[j].take();
@@ -135,7 +139,7 @@ impl BTree {
                         let pop_child = node.children[j].as_ref()?.children
                             .iter()
                             .position(|child| child.is_none())? - 1;
-                        for move_index in (1..2*degree).rev() {
+                        for move_index in (1..2*degree-1).rev() {
                             node.children[i].as_mut()?.children[move_index] = node.children[i].as_mut()?.children[move_index-1].take();
                         }
                         node.children[i].as_mut()?.children[0] = node.children[j].as_mut()?.children[pop_child].take();
@@ -315,5 +319,38 @@ impl<'a> Iterator for BTreeIter<'a> {
 }
 
 fn main() {
-    println!("Testing");
+    let mut btree = BTree::create_tree(2);
+
+    for i in 1..6 {
+        btree.insert(i);
+    }
+
+    println!("Original tree");
+    for i in &btree {
+        println!("{:?}", i);
+    }
+
+    let mut deleted = btree.remove(1).unwrap();
+    println!("Delete key is {:?}", deleted);
+
+    println!("Tree after removing {:?}", deleted);
+    for i in &btree {
+        println!("{:?}", i);
+    }
+
+    deleted = btree.remove(2).unwrap();
+    println!("Delete key is {:?}", deleted);
+
+    println!("Tree after removing {:?}", deleted);
+    for i in &btree {
+        println!("{:?}", i);
+    }
+
+    deleted = btree.remove(3).unwrap();
+    println!("Delete key is {:?}", deleted);
+
+    println!("Tree after removing {:?}", deleted);
+    for i in &btree {
+        println!("{:?}", i);
+    }
 }
